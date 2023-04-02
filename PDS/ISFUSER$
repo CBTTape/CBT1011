@@ -1,0 +1,621 @@
+//SBGOLOBU JOB (CCMVS),ASMLINK,
+// NOTIFY=&SYSUID,
+// CLASS=B,MSGCLASS=X,COND=(1,LT)
+//*
+//*     ASM LINKEDIT FROM SOURCE ASM
+//*
+//ASMH EXEC PGM=ASMA90,PARM=(OBJECT,NODECK,NOESD,RLD)
+//SYSLIB   DD DISP=SHR,DSN=SYS1.MACLIB
+//         DD DISP=SHR,DSN=SYS1.MODGEN
+//         DD DISP=SHR,DSN=ISF.SISFMAC
+//SYSUT1   DD UNIT=SYSDA,SPACE=(CYL,20)
+//SYSPRINT DD SYSOUT=*
+//SYSLIN   DD UNIT=SYSDA,SPACE=(TRK,30),DISP=(,PASS),DCB=BLKSIZE=3200,
+//            DSN=&&TEMP
+//SYSIN    DD DATA,DLM=KK
+ISFUSER  START 0                                                   @LRA
+         ISFLIST OFF
+         COPY  ISFEQU
+USER     TITLE 'ISFUSER - SDSF USER EXIT MODULE &SDSFCPY'          @LRC
+         ISFLIST ON
+         EJECT
+*START OF SPECIFICATIONS***********************************************
+*                                                                     *
+*  MODULE NAME: ISFUSER                                               *
+*                                                                     *
+*  DESCRIPTIVE-NAME: SDSF USER EXIT MODULE                            *
+*                                                                     *
+*  PROPRIETARY STATEMENT =                                            *
+*                                                                     *
+*    LICENSED MATERIALS - PROPERTY OF IBM                             *
+*    RESTRICTED MATERIALS OF IBM                                      *
+*                                                                     *
+*    5650-ZOS                                                         *
+*                                                                     *
+*    Copyright IBM CORP. 1981, 2019.                                  *
+*    Copyright Rocket Software, Inc. 2015, 2019.                      *
+*                                                                     *
+*    Status = HQX77C0                                                 *
+*                                                                     *
+*  FUNCTION: PROVIDES AN INTERFACE FOR THE USER TO INCLUDE CODE TO    *
+*            PERFORM THE FOLLOWING FUNCTIONS:                         *
+*                                                                     *
+*            - CHECK USER AUTHORITY TO USE SDSF                       *
+*            - CHECK USER SYSOUT DISPLAY AUTHORITY                    *
+*            - CHECK OPERATOR COMMAND AUTHORITY                       *
+*            - PERFORM USER EXIT TERMINATION PROCESSING               *
+*            - PERFORM PRE-SAF AUTHORIZATION DETERMINATION        @D1A*
+*            - PERFORM POST-SAF PROCESSING                        @NLA*
+*            - PERFORM SAF INDETERMINATE AUTHORIZATION CHECK      @D1A*
+*            - PERFORM TABLE BUILD DISPLAY AUTHORIZATION          @D1A*
+*                                                                     *
+*  OPERATION: THE OPERATION OF THE MODULE IS KEYED OFF THE VALUE      *
+*             THAT IS PASSED IN REGISTER 0 AT ENTRY, AND THE CODE     *
+*             THE USER SUPPLIES TO PROCESS THE FUNCTION.              *
+*                                                                     *
+*             REGISTER 0 MAY CONTAIN ANY OF THE FOLLOWING VALUES TO   *
+*             INDICATE THE TYPE OF CALL TO BE PROCESSED:              *
+*                                                                     *
+*              0 - SDSF USE AUTHORITY CHECK                           *
+*              4 - COMMAND AUTHORITY CHECK                            *
+*              8 - SYSOUT DISPLAY AUTHORITY CHECK                     *
+*             12 - TERMINATION PROCESSING                             *
+*             16 - PRE-SAF CHECK                                  @D1A*
+*             20 - SAF INDETERMINATE CHECK                        @D1A*
+*             24 - TABLE ENTRY BUILD CHECK                        @D1A*
+*             28 - POST SAF PROCESSING                            @NLA*
+*                                                                     *
+*             REGISTER 1 WILL ALWAYS HAVE THE ADDRESS OF THE USER     *
+*             PARAMETER AREA UPON ENTRY TO ISFUSER.                   *
+*                                                                     *
+*             1. CHECK USER AUTHORITY TO USE SDSF                     *
+*                                                                     *
+*                DURING INITIALIZATION, ISFINIT CALLS ISFUSER.  THIS  *
+*                IS DONE RIGHT AFTER THE INFORMATION FROM THE ISFGRP  *
+*                MACRO IS PUT IN THE USER PARAMETER AREA.  UPON       *
+*                RETURN, REGISTER 15 SHOULD CONTAIN A ZERO (THE       *
+*                USER IS AUTHORIZED) OR A NON-ZERO (THE USER IS NOT   *
+*                AUTHORIZED).  SDSF WILL TAKE THE APPROPRIATE         *
+*                ACTION BASED ON THE CONTENTS OF REGISTER 15.         *
+*                                                                  @P3A
+*                NOTE THAT THE PRE-SAF EXIT WILL BE THE FIRST EXIT @P3A
+*                POINT DRIVEN DUE TO SAF INITIALIZATION PROCESSING.@P3A
+*                                                                     *
+*                                                                     *
+*             2. COMMAND AUTHORITY CHECK                              *
+*                                                                     *
+*                ISFUSER WILL BE CALLED AFTER SDSF HAS DETERMINED     *
+*                WHETHER OR NOT A USER IS AUTHORIZED TO ISSUE         *
+*                COMMANDS.  UPON RETURN FROM ISFUSER, A RETURN CODE   *
+*                MAY BE SET TO ACCEPT OR OVERRIDE THE AUTHORIZATION   *
+*                AS DETERMINED BY SDSF.  THE RETURN CODE IS SET IN    *
+*                REGISTER 15.  A ZERO RETURN CODE INDICATES THAT THE  *
+*                USER IS AUTHORIZED AND A NON-ZERO INDICATES THE      *
+*                USER IS NOT AUTHORIZED.  SDSF WILL TAKE THE          *
+*                APPROPRIATE ACTION BASED ON THOSE SET VALUES.  IT @D1C
+*                SHOULD BE NOTED THAT WHEN RUNNING AT A JES2       @D1A
+*                LEVEL, THIS EXIT POINT WILL ONLY BE INVOKED WHEN  @D1A
+*                SAF HAS BEEN UNABLE TO MAKE A SECURITY DECISION   @D1A
+*                AND A FALLBACK TO ISFPARMS SECURITY IS IMPLIED.   @D1A
+*                AN RC=0 OR RC=8 FROM SAF CAUSES ISFPARMS TO BE IG-@D1A
+*                NORED, THEREFORE THIS EXIT IS NOT CALLED.         @D1A
+*                                                                     *
+*                This exit is not called when SDSF is processing   @J2A
+*                a JES3 subsystem.                                 @J2A
+*                                                                  @J2A
+*             3. SYSOUT DISPLAY AUTHORITY CHECK                       *
+*                                                                     *
+*                ISFUSER WILL BE CALLED AFTER SDSF HAS DETERMINED     *
+*                WHETHER OR NOT A USER IS AUTHORIZED TO DISPLAY       *
+*                JOBS.  UPON RETURN FROM ISFUSER, A RETURN CODE MAY   *
+*                BE SET TO ACCEPT OR OVERRIDE THE AUTHORIZATION       *
+*                AS DETERMINED BY SDSF.  THE RETURN CODE IS SET IN    *
+*                REGISTER 15.  A ZERO RETURN CODE INDICATES THAT THE  *
+*                USER IS AUTHORIZED AND A NON-ZERO INDICATES THE      *
+*                USER IS NOT AUTHORIZED.  SDSF WILL TAKE THE          *
+*                APPROPRIATE ACTION BASED ON THOSE SET VALUES.  IT @D1C
+*                SHOULD BE NOTED THAT WHEN RUNNING AT A JES2       @D1A
+*                LEVEL, THIS EXIT POINT WILL ONLY BE INVOKED WHEN  @D1A
+*                SAF HAS BEEN UNABLE TO MAKE A SECURITY DECISION.  @D1A
+*                                                                  @D1A
+*                                                                  @J2A
+*                This exit is not called when SDSF is processing   @J2A
+*                a JES3 subsystem.                                 @J2A
+*                                                                     *
+*             4. TERMINATION                                          *
+*                                                                     *
+*                ISFSTOP WILL CALL ISFUSER TO PERFORM TERMINATION     *
+*                PROCESSING.  THIS MAY INCLUDE CLEANUP OF WORK        *
+*                AREAS THAT MAY HAVE BEEN OBTAINED DURING PRIOR CALLS.*
+*                                                                     *
+*             5. PRE-SAF                                          @D1A*
+*                                                                 @D1A*
+*                ISFSAF WILL CALL ISFUSER PRIOR TO THE RACROUTE   @D1A*
+*                CALL(FUNCTION CODE X'10'). THE EXIT CAN INDICATE @D1A*
+*                THE PROCESSING TO BE DONE BASED ON THE FOLLOWING @MFC*
+*                RETURN CODES:                                    @MFC*
+*                                                                 @MFC*
+*                   00 - CONTINUE WITH SAF CALL                   @MFC*
+*                   04 - BYPASS SAF CALL AND USE FALLBACK MODE    @MFC*
+*                   08 - FAIL AUTHORIZATION REQUEST               @MFC*
+*                OTHER - FAIL AUTHORIZATION REQUEST               @MFC*
+*                                                                 @D1A*
+*                NOTE THAT THE PRE-SAF EXIT WILL BE THE FIRST     @P3A*
+*                EXIT POINT.                                      @P3A*
+*                                                                 @P3A*
+*             6. SAF INDETERMINATE                                @D1A*
+*                                                                 @D1A*
+*                IF THE RACROUTE REQUEST RETURNS A CODE(4)        @D1A*
+*                INDICATING IT CANNOT MAKE AN AUTHORIZATION       @D1A*
+*                DETERMINATION, ISFUSER WILL BE CALLED WITH       @D1A*
+*                A X'14' FUNCTION CODE TO DETERMINE THE ACTION    @D1A*
+*                TO BE TAKEN. RETURN CODE 0 INDICATES THAT THE    @D1A*
+*                USER IS AUTHORIZED FOR THE FUNCTION. RETURN CODE @D1A*
+*                4 MEANS THAT AUTHORIZATION WILL BE DETERMINED    @D1A*
+*                FROM THE ISFGRP SPECIFICATION(COMPATIBLE WITH    @D1A*
+*                PRIOR RELEASES OF SDSF). RETURN CODE 8 MEANS     @D1A*
+*                THAT THE USER IS NOT AUTHORIZED FOR THE          @D1A*
+*                FUNCTION.                                        @D1A*
+*                                                                 @D1A*
+*             7. TABLE BUILD                                      @D1A*
+*                                                                 @D1A*
+*                THE TABLE PROCESSING ROUTINES WILL CALL ISFUSER  @D1A*
+*                WITH FUNCTION CODE X'18'. RETURN CODE ZERO       @D1A*
+*                INDICATES THAT THE ENTRY WILL BE INCLUDED ON THE @D1A*
+*                DISPLAY. A NON-ZERO REURN CODE INDICATES THAT    @D1A*
+*                THE ENTRY WILL NOT BE INCLUDED ON THE DISPLAY.   @D1A*
+*                                                                 @D1A*
+*             8. POST SAF PROCESSING                              @NLA*
+*                                                                 @NLA*
+*                THE POST SAF EXIT WILL BE CALLED AFTER THE       @NLA*
+*                COMPLETION OF A SAF CALL TO CHECK AUTHORITY TO   @NLA*
+*                A RESOURCE.  THE EXIT CAN BE USED TO PERFORM     @NLA*
+*                ADDITIONAL SECURITY CHECKS OR LOGGING REQUIRED   @NLA*
+*                BY THE INSTALLATION.  THE ORIGINAL SAF RETURN    @NLA*
+*                CODE IS AVAILABLE IN FIELD UPRSAFRC.             @NLA*
+*                                                                 @NLA*
+*                THE EXIT INDICATES WHETHER TO ACCEPT OR IGNORE   @NLA*
+*                THE ORIGINAL SAF RETURN CODE BY PLACING A        @NLA*
+*                RETURN CODE IN R15 AS FOLLOWS:                   @NLA*
+*                                                                 @NLA*
+*                  00      ACCEPT THE SAF DECISION AND PROCESS    @NLA*
+*                          ACCORDING TO THE ORIGINAL SAF RETURN   @NLA*
+*                          CODE.  IF THE ORIGINAL SAF RETURN CODE @NLA*
+*                          WAS 04, THE SDSF SAF INDETERMINATE     @NLA*
+*                          EXIT WILL BE CALLED.                   @NLA*
+*                                                                 @NLA*
+*                  04      IGNORE THE SAF DECISION AND PROCESS    @NLA*
+*                          AS IF SAF SET A RETURN CODE OF 04.     @NLA*
+*                          THE SDSF SAF INDETERMINATE EXIT WILL   @NLA*
+*                          BE CALLED.                             @NLA*
+*                                                                 @NLA*
+*                  08      IGNORE THE SAF DECISION.  THE USER IS  @NLA*
+*                          NOT AUTHORIZED TO THE RESOURCE.        @NLA*
+*                                                                 @NLA*
+*                  12      IGNORE THE SAF DECISION.  THE USER IS  @NLA*
+*                          AUTHORIZED TO THE RESOURCE.            @NLA*
+*                                                                 @NLA*
+*                  OTHER   SAME AS RETURN CODE 08                 @NLA*
+*                                                                 @NLA*
+*                                                                 @NLA*
+*                  The post-SAF exit is invoked only for SAF       @I9A
+*                  calls done explicitly by SDSF.  In addition     @I9A
+*                  to the SAF calls done by SDSF, some components  @I9A
+*                  make subsequent SAF calls as part of the        @I9A
+*                  interface that SDSF uses.                       @I9A
+*                                                                  @I9A
+*                  For example, the output data set browse         @JHC
+*                  actions S/SB/SE result in SAF calls done by     @JHC
+*                  both SDSF and JES.  The SDSF post-SAF exit is   @JHC
+*                  invoked for the SAF call made by SDSF, but not  @JHC
+*                  for the one made by JES.                        @JHA
+*                                                                  @I9A
+*                  When using the post-SAF exit to override        @I9A
+*                  security decisions, note that additional SAF    @I9A
+*                  checks may be done by other components (such    @I9A
+*                  as JES2) after return from the SDSF exit.       @I9A
+*                  Any override processing done by the post-SAF    @I9A
+*                  exit applies to SDSF but not to the other       @I9A
+*                  components that may be subsequently called.     @I9A
+*                                                                  @I9A
+*                                                                  @I9A
+*
+*   USERMOD SDSF01 Force use of MVS control blocks for DA panel    @DNM
+*
+*   NOTE:                                                             *
+*                                                                     *
+*      1. A WORD NAMED UPRUWORD HAS BEEN PROVIDED FOR THE USER        *
+*         TO PASS DATA ACROSS EXIT CALLS.                             *
+*                                                                     *
+*      2. WHEN OBTAINING STORAGE (GETMAIN) IN ISFUSER              @A1A
+*         RUNNING AS AN AUTHORIZED PROGRAM, ENSURE THE             @A1A
+*         GETMAIN IS FROM AN AUTHORIZED SUB POOL (EG.  230).       @A1A
+*         OTHERWISE THE KEY OF THE GETMAINED STORAGE WILL BE       @A1A
+*         THE JOBSTEP KEY FROM THE TCB (TASK CONTROL BLOCK).       @A1A
+*                                                                     *
+*      3. TO ACCESS JES2 CONTROL BLOCKS, YOU MUST ADD $MODULE      @A3A
+*         MACRO ALONG WITH THE JES2 CONTROL BLOCKS.                @A3A
+*         FOR EXAMPLE:                                             @A3A
+*                                                                  @A3A
+*         ISFUSER  START 0                                         @A3A
+*                  ISFLIST OFF                                     @A3A
+*                  $MODULE $HCT,$IOT,$JCT,$JQE,$PDDB               @A3A
+*                                                                     *
+*                                                                     *
+*  RECOVERY OPERATION: NONE                                           *
+*                                                                     *
+*  NOTES:                                                             *
+*                                                                     *
+*    DEPENDENCIES: NONE                                               *
+*                                                                     *
+*    CHARACTER-CODE-DEPENDENCIES: NONE                                *
+*                                                                     *
+*    RESTRICTIONS: NONE                                               *
+*                                                                     *
+*    REGISTER-CONVENTIONS: REFER TO ISFEQU MACRO                      *
+*                                                                     *
+*      REGISTERS-SAVED:  14-12                                        *
+*                                                                     *
+*      REGISTER-USAGE: R10 - VALUE INDICATING CALL TYPE               *
+*                      R11 - POINTER TO USER EXIT PARM LIST (USERPARM)*
+*                      R12 - MODULE BASE REGISTER                     *
+*                      R13 - POINTER TO REGISTER SAVE AREA            *
+*                      R14 - RETURN ADDRESS                           *
+*                      R15 - ERROR RETURN CODE                        *
+*                                                                     *
+*      REGISTERS-RESTORED: 14-12                                      *
+*                                                                     *
+*    PATCH-LABEL: USERPTCH                                            *
+*                                                                     *
+*  MODULE-TYPE:   PROCEDURE                                           *
+*                                                                     *
+*    PROCESSOR:   ASSEMBLER-H                                         *
+*                                                                     *
+*    MODULE-SIZE: SEE ESD LENGTH                                      *
+*                                                                     *
+*    ATTRIBUTES:                                                      *
+*                                                                     *
+*      LOCATION:      USER A/S - RESIDENT                             *
+*      STATE:         SUPERVISOR                                   @NLC
+*      AMODE:         31 BIT                                       @P1C
+*      RMODE:         ANY                                          @P1C
+*      KEY:           KEY 1                                        @NLC
+*      MODE:          TASK                                            *
+*      SERIALIZATION: NONE                                            *
+*      TYPE:          REENTRANT                                       *
+*      ASC MODE:      PRIMARY                                      @NSA
+*                                                                     *
+*  ENTRY-POINT: ISFUSER                                               *
+*                                                                     *
+*    PURPOSE: SEE MODULE FUNCTION                                     *
+*                                                                     *
+*      OPERATION: SEE MODULE OPERATION                                *
+*                                                                     *
+*    LINKAGE: INVOKED BY BALR 14,15                                   *
+*                                                                     *
+*      CALLERS: ISFXUSR MACRO                                      @NSC
+*                                                                     *
+*      ENTRY-REGISTERS:                                               *
+*               REGISTER 00 - VALUE INDICATING TYPE OF CALL           *
+*               REGISTER 01 - POINTER TO USER EXIT PARAMETER AREA     *
+*                             (MAPPED BY USERPARM DSECT CONTAINED     *
+*                              IN THIS MODULE)                        *
+*               REGISTER 13 - SAVE AREA                               *
+*               REGISTER 14 - RETURN ADDRESS                          *
+*               REGISTER 15 - ENTRY POINT ADDRESS                     *
+*                                                                     *
+*  INPUT:  SEE ENTRY-REGISTERS                                        *
+*                                                                     *
+*  OUTPUT: USERPARM FIELDS AND REGISTER 15 SET TO APPROPRIATE VALUES  *
+*          TO EITHER ACCEPT OR REJECT USER AUTHORITY.                 *
+*                                                                     *
+*  EXIT-NORMAL:  RETURN TO CALLER                                     *
+*                                                                     *
+*    CONDITIONS: EXIT ACCEPTS USER AUTHORITY (EXIT AT LABEL: RETURN)  *
+*                                                                     *
+*      EXIT-REGISTERS: SEE REGISTERS RESTORED                         *
+*                                                                     *
+*    RETURN-CODES: R15=0                                              *
+*                                                                     *
+*    CONDITIONS: EXIT REJECTS USER AUTHORITY (EXIT AT LABEL: FAIL)    *
+*                                                                     *
+*      EXIT-REGISTERS: SEE REGISTERS RESTORED                         *
+*                                                                     *
+*    RETURN-CODES: R15=4                                              *
+*                                                                     *
+*  EXIT-ERROR:   NONE                                                 *
+*                                                                     *
+*    CONDITIONS: NORMAL EXIT IS ALWAYS TAKEN                          *
+*                                                                     *
+*      EXIT-REGISTERS: N/A                                            *
+*                                                                     *
+*    RETURN-CODES: N/A                                                *
+*                                                                     *
+*  USER-EXITS: N/A                                                    *
+*                                                                     *
+*  EXTERNAL-REFERENCES: NONE                                          *
+*                                                                     *
+*    ROUTINES: NONE                                                   *
+*                                                                     *
+*    DATA-AREAS: SEE CONTROL BLOCKS                                   *
+*                                                                     *
+*  CONTROL-BLOCKS:                                                    *
+*                                                                     *
+*    JES2 CONTROL BLOCKS: NONE                                        *
+*                                                                     *
+*    SDSF CONTROL BLOCKS: ISFUPRM                                     *
+*                         UXTEBPRM                                @D1A*
+*                                                                     *
+*    MVS CONTROL BLOCKS:  NONE                                        *
+*                                                                     *
+*                                                                     *
+*  TABLES: NONE                                                       *
+*                                                                     *
+*  MACROS-EXECUTABLE:                                                 *
+*                                                                     *
+*    JES2 EXECUTABLE MACROS: NONE                                     *
+*                                                                     *
+*    SDSF EXECUTABLE MACROS: ISFMODID                              @LRC
+*                                                                  @KRC
+*                                                                     *
+*    MVS EXECUTABLE MACROS:  NONE                                  @NSC
+*                                                                     *
+*  MACROS-NON-EXECUTABLE:                                             *
+*                                                                     *
+*    JES2 NON-EXECUTABLE MACROS: NONE                                 *
+*                                                                     *
+*    SDSF NON-EXECUTABLE MACROS: ISFEQU                               *
+*                                                                     *
+*    MVS NON-EXECUTABLE MACROS: NONE                                  *
+*                                                                     *
+*  WAIT STATE CODES: NONE                                             *
+*                                                                     *
+*  MESSAGES: NONE                                                     *
+*                                                                     *
+*  CHANGE ACTIVITY:                                                   *
+*                                                                     *
+         ISFLIST OFF
+*    $L1=SDSFV1R1,HQX1102,870402,KDJV: BASE CODE                      *
+*    $LR=SDSFV1R2,HQX1103,880324,KDKJ: DATA IN PROLOGS             @LRC
+*    $LB=SDSFV1R2,HQX1103,880602,KDKC: TRACE SUPPORT               @LCC
+*    $SC=SDSFV1R3,HQX1300,890111,KDJW: REMOVE ALIAS                @SCA
+*    $SB=SDSFV1R3,HQX1300,890118,KDJW: VSCR SUPPORT                @SBA
+*    $D1=DCR1029,HQX1300,890908,KDWL: USER EXIT SUPPORT            @D1A
+*    $A1=SDSFV1R2,HQX1103,890906,FEJL: GETMAIN STORAGE IN TCB KEY  @A1A
+*    $P1=PEE0054,HQX1310,890515,KDGW:                              @P1A
+*    $P2=PHH0041,HQX1320,901127,KDGW:                              @P2A
+*    $M6=V1R3M3,HQX1330,920407,KDKJ: TRACE ENHANCEMENTS            @M6A
+*    $MG=V1R3M3,HQX1330,920507,KDKJ: V1R3M3                        @MGA
+*    $MF=V1R3M3,HQX1330,920419,KDKJ: FALLBACK RC FROM PRE-SAF      @MFA
+*    $P3=PM60051,HQX1330,920722,KDLL:                              @P3A
+         ISFLIST ON
+*    $NL=POSTSAF,HQX1500,931217,KDKJ: POST SAF                     @NLA
+*    $NS=CKPTVER,HQX1500,940501,KDKJ: CHECKPOINT VERSIONING        @NSA
+*    $HX=G64KJOBS,HQX7705,000822,KDKJ: GT 64K JOBS                 @HXA
+*   $A2=PQ45650,HQX7705,010607,KDBH: NEW FLAG FOR PRINT CONTROL(R) @A2A
+*   $A3=PQ52616,HQX7705,011010,KDBH: JES2 ASSEMBLY PROBLEMS        @A3A
+*    $I9=RELSP,HQX7708,020819,KDKJ: Prolog update                  @I9A
+*    $J1=RELSP,HQX7750,070324,KDKJ: Release support                @J1A
+*    $J2=JES3BASE,HQX7750,070521,KDKJ: JES3 base support           @J2A
+*    $JH=RELSP,HQX7770,090617,KDKJ: Release support                @JHA
+*    $KQ=RELSP,HQX77C0,180531,KDKJ: Remove ISFXPTCH                @KRA
+*   $A4=PH12770,HQX77C0,190716,KDKJ: Duplicate sequence numbers    @A4A
+*                                                                     *
+*END OF SPECIFICATIONS*************************************************
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      START OF EXECUTABLE CODE                       *
+*                                                                     *
+***********************************************************************
+         SPACE 1
+ISFUSER  CSECT
+         ISFMODE AMODE=31,RMODE=ANY                                @SBA
+         USING ISFUSER,R15         SET TEMPORARY BASE              @LRA
+         ISFMODID LEVEL=PH12770                                    @A4C
+         DROP  R15                 DONE WITH TEMPORARY BASE        @LRA
+         BAKR  R14,0               SAVE ALL REGISTERS              @NSC
+         LR    R12,R15             BASE REGISTER                   @LRC
+         USING ISFUSER,R12                                         @LRC
+         LR    R11,R1              USER EXIT PARM
+         USING USERPARM,R11
+         LR    R10,R0              CALL TYPE
+         CH    R10,=Y(UXCTMAX)     CALL TYPE VALID?                @NLA
+         BH    RETURN              NO, EXIT                        @NLA
+         B     CALLTYPE(R10)       GO TO PROPER CODE
+CALLTYPE B     INITCK              INITIALIZATION
+         B     CMDCK               COMMAND CHECK
+         B     DSPCK               DISPLAY SYSOUT CHECK
+         B     EXIT                EXIT PROCESSING
+         B     PRESAF              PRE SAF AUTHORIZATION CHECK     @D1A
+         B     SAFINDET            SAF INDETERMINATE CHECK         @D1A
+         B     ENTBUILD            TABLE ENTRY BUILD EXIT          @D1A
+         B     POSTSAF             POST SAF EXIT                   @NLA
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      INITIALIZATION USER CHECK SECTION              *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+INITCK   DS    0H                  INITIALIZATION USER CHECK
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+* Local Modification
+         OI    UPRSFLAG,UPRNORMF   Use DA data from MVS not RMF
+* End of Local Modification
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      OPERATOR COMMAND CHECK SECTION                 *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+CMDCK    DS    0H                  OPERATOR COMMAND CHECK
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      DISPLAY SYSOUT CHECK SECTION                   *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+DSPCK    DS    0H                  DISPLAY SYSOUT CHECK
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      EXIT CLEAN UP SECTION                          *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+EXIT     DS    0H                  EXIT PROCESSING
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      PRE SAF AUTHORIZATION CHECK                    *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+PRESAF   DS    0H                  PRE SAF PROCESSING              @D1A
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+         B     RETURN              RETURN CODE 0 PROCESSING        @D1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      SAF INDETERMINATE EXIT                         *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+SAFINDET DS    0H                  SAF INDETERMINATE PROCESSING    @D1A
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+         B     FAIL                RETURN CODE FOUR PROCESSING     @D1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      TABLE BUILD EXIT                               *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+ENTBUILD DS    0H                  TABLE BUILD PROCESSING          @D1A
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+*                                                                     *
+*                      POST SAF EXIT                                  *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+POSTSAF  DS    0H                  POST SAF PROCESSING             @NLA
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                      ADD USER CODE HERE                             *
+*                                                                     *
+***********************************************************************
+         B     RETURN                                              @J1A
+         EJECT
+***********************************************************************
+***********************                         ***********************
+**********************  ISFUSER EXIT PROCESSING  **********************
+***********************                         ***********************
+***********************************************************************
+         SPACE 2
+***********************************************************************
+*                      NORMAL EXIT FROM ISFUSER                       *
+***********************************************************************
+RETURN   DS    0H                                                  @LCC
+         SR    R15,R15             SET RETURN CODE 0               @NSA
+         PR                        RETURN                          @NSC
+         SPACE 2
+***********************************************************************
+*                       ERROR EXIT FROM ISFUSER                       *
+***********************************************************************
+FAIL     DS    0H                                                  @LCC
+         LA    R15,4               SET RETURN CODE 4               @NSA
+         PR                        RETURN RETURN CODE 4            @NSC
+         EJECT
+***********************************************************************
+*                                                                     *
+*                        ISFUSER LITERAL POOL                         *
+*                                                                     *
+***********************************************************************
+         SPACE 1
+         LTORG
+         EJECT
+***********************************************************************
+*                                                                     *
+*                        FLAG BIT DEFINITIONS                         *
+*                                                                     *
+***********************************************************************
+         SPACE 1
+         IEZBITS
+         EJECT
+***********************************************************************
+*                                                                     *
+*                    USER EXIT COMMUNICATION AREA                     *
+*                                                                     *
+***********************************************************************
+         SPACE 1
+USERPARM DSECT                     USER EXIT PARM
+         ISFUPRM
+         END
+KK
+//LKED   EXEC  PGM=IEWL,
+//       PARM='NCAL,MAP,LIST,LET,RENT,REUS'
+//SYSUT1   DD  UNIT=SYSDA,SPACE=(2048,(200,20))
+//SYSPRINT DD  SYSOUT=*
+//SYSLIB   DD  DISP=(OLD,PASS),DSN=&&TEMP
+//SYSLMOD  DD  DISP=SHR,DSN=SBGOLOB.LOAD
+//SYSLIN   DD  *
+ INCLUDE SYSLIB
+ ORDER   ISFUSER
+ SETSSI  C5021011
+ ENTRY   ISFUSER
+ NAME    ISFUSER(R)
