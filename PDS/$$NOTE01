@@ -1,0 +1,62 @@
+Subject:  Small contribution
+From:     "Mitchell, Dana" <dmitche@Shazam.net>
+Date:     3/24/2021, 11:10 AM
+To:       Sam Golob <sbgolob@cbttape.org>
+
+Hi Sam, I hope you are doing well!
+
+I recently ran across a small problem, and had to whip up a
+usermod to address it, and wondered if you'd like a copy to put
+somewhere on CBTTAPE.ORG.  It's not really large enough to
+merit its own file, but I'll leave that up to you if you
+think it's useful.
+
+Background
+
+The systems we have running at our DR hot site do not have RMF
+licensed or running  (I'm sure it's not real expensive, but
+the decision was made long before I came here).  That never
+caused any trouble in the past,  just a harmless warning message
+here and there in SDSF.   After I converted all LPARs from z/OS
+2.2 -> 2.4,  the SDSF DA screen wouldn't work at all,
+issuing message:
+
+ISF452E SDSFAUX communications failed, return code 0x00000004,
+reason code 0x00750412, function "query DA". RMF required to
+process request.
+
+I opened a case with IBM support and received this answer;
+
+To request that DA use the MVS control blocks rather than RMF,
+and prevent display of this message, the installation can use the
+installation exit point of ISFUSER. For more information on the
+installation exit routines, refer to Chapter 9, â  Using
+installation exit routines,â   on page 389 of the SDSF v2.4
+Operations and Customization Guide. Look to section
+"Initialization exit point", specifically, field name
+UPRSFLAG.UPRNORMF.
+
+Since IBM's direction is to move away from assembler exits,    I
+was a little surprised by this.  At the time,  we did not have an
+SDSF ISFUSER exit in place so I needed to create a small usermod
+from scratch (two actually) to update ISFUSER with the UPRNORMF
+bit set.   I have coded one that does a complete replacement of
+the source,  and one that merely does a ++SRCUPD to turn on the
+UPRNORMF bit.  Depending upon what else if anything the user
+needs to do to ISFUSER, either usermod will work.
+
+If you think this might be useful for anyone I can package them
+up with a little description and pass along.  Perhaps someone
+else may find themselves in the situation where they need a new
+ISFUSER where none existed before.   I know this is the first
+UMOD I've had to create from scratch in a good many years.
+
+Let me know if you would be interested, and thanks again for your
+continued stewardship of the wonderful CBTTAPE.
+
+Dana
+
+DANA N MITCHELL / Senior Systems Programmer
+o: 515-288-2828, ext. 2953 / SHAZAM.NET
+6700 Pioneer Pkwy / Johnston, IA 50131 /
+

@@ -1,0 +1,23 @@
+SDSF Usermod
+--------------------------------------------------------------------------------
+Somewhere between z/OS 2.2 and 2.4 SDSF DA command refused to work
+without RMF.
+
+After upgrade to z/OS V2R4, SDSF DA command received
+msg ISF452E SDSFAUX communications failed,
+return code 0x00000004, reason code 0x00750412
+function "query DA". RMF required to process request.
+
+I opened an IBM case and was told:
+
+To request that DA use the MVS control blocks rather than RMF, and
+prevent display of this message, the installation can use the
+installation exit point of ISFUSER. For more information on the
+installation exit routines, refer to Chapter 9,  Using Installation Exit
+Routines," on page 389 of the SDSF v2.4 Operations and Customization
+Guide.  Look to section "Initialization Exit Point", specifically, field
+name UPRSFLAG.UPRNORMF.
+
+Members:
+ISFUSER   Full source replacement usermod for ISFUSER
+ISFUSER2  Source update usermod for ISFUSER
